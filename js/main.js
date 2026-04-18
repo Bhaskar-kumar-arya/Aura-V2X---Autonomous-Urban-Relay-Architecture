@@ -188,17 +188,29 @@ async function runAstar(sliderVal) {
 
   console.log(`[A*] sliderVal=${sliderVal}  fleetNow=${fleetNow}  origin=${originNodeId}  dest=${destNodeId}`);
 
-  const path = findRoute(
+  let activeOriginId = originNodeId;
+  let traveledPath = [];
+  const inMotion = (state.simActive || state.simStep > 0) && state.evPath && state.simStep < state.evPath.length;
+
+  if (inMotion) {
+    const currentLoc = state.evPath[state.simStep];
+    activeOriginId = getNearestNode(currentLoc[0], currentLoc[1], graphNodes);
+    traveledPath = state.evPath.slice(0, state.simStep);
+  }
+
+  const remainingPath = findRoute(
     graphAdj, graphNodes,
-    originNodeId, destNodeId,
+    activeOriginId, destNodeId,
     sliderVal, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isWeatherEnabled ? WEATHER_ZONES : [],
     getZonePenaltyAt
   );
 
-  if (!path) {
+  if (!remainingPath) {
     appendLog("warn", "⚠ A* could not find a path. Check graph connectivity.");
     return;
   }
+
+  const path = traveledPath.concat(remainingPath);
 
   console.log(`[A*] path found  coords=${path.length}  midpoint=[${path[Math.floor(path.length/2)]}]`);
   window.lastPath = path;
@@ -235,7 +247,11 @@ async function runAstar(sliderVal) {
   routes.scores.safe    = computeConnScore(routes.safe,    CELL_TOWERS, COVERAGE_RADIUS);
   updateComparisonTable();
 
-  placeEV(path[0]);
+  if (inMotion) {
+    placeEV(path[state.simStep]);
+  } else {
+    placeEV(path[0]);
+  }
 }
 
 // ── Graph initialisation ──────────────────────────────────────

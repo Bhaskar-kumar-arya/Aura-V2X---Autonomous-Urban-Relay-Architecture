@@ -9,7 +9,7 @@ import { placeEV, drawFleet } from "./drawMarkers.js";
 import { appendLog, setMeshActive } from "./sosTelemetry.js";
 import { FLEET_VEHICLES } from "./data.js";
 
-const STEP_INTERVAL_MS = 500;
+const STEP_INTERVAL_MS = 400;
 
 // ── Dead-zone step indices on the FASTEST route ────────────────
 const DZ_ENTRY_STEP    = 3;   // vehicle enters dead zone
