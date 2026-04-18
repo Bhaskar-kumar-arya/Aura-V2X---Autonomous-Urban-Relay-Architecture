@@ -39,14 +39,17 @@
       </div>
     </div>
     <div class="header-right">
-      <div class="sim-toggle-wrapper">
-        <span class="toggle-label">Simulation</span>
-        <label class="sim-toggle" id="sim-toggle-label">
-          <input type="checkbox" id="sim-toggle" />
-          <span class="toggle-track">
-            <span class="toggle-thumb"></span>
-          </span>
-        </label>
+      <div class="sim-controls">
+        <div class="sim-toggle-wrapper">
+          <span class="toggle-label">Simulation</span>
+          <label class="sim-toggle" id="sim-toggle-label">
+            <input type="checkbox" id="sim-toggle" />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+        <button class="pause-btn" id="pause-btn" disabled>⏸ Pause</button>
       </div>
       <div class="badge" id="system-status-badge">● SYSTEM READY</div>
     </div>
@@ -108,6 +111,22 @@
             <input type="checkbox" id="weather-toggle" checked />
             <span class="toggle-track"><span class="toggle-thumb"></span></span>
           </label>
+        </div>
+      </section>
+
+      <!-- INTERACTIVE ZONES -->
+      <section class="panel-section">
+        <h2 class="section-title">Signal Zones</h2>
+        <p class="zone-help-text">Drop a zone on the map, then adjust its signal strength slider. The route adapts in real time.</p>
+        <button class="zone-chip-btn" id="btn-add-zone">
+          <span class="zone-btn-icon">🔴</span>
+          <span>Add Signal Zone</span>
+        </button>
+        <div class="zone-legend">
+          <div class="zone-legend-row"><span class="zl-dot" style="background:#ef4444"></span> 0.0 – 0.2 &nbsp; Dead Zone</div>
+          <div class="zone-legend-row"><span class="zl-dot" style="background:#f97316"></span> 0.2 – 0.45 Weak Signal</div>
+          <div class="zone-legend-row"><span class="zl-dot" style="background:#f59e0b"></span> 0.45 – 0.7 Moderate</div>
+          <div class="zone-legend-row"><span class="zl-dot" style="background:#22c55e"></span> 0.7 – 1.0 Strong Signal</div>
         </div>
       </section>
 

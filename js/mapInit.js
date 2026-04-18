@@ -25,18 +25,20 @@ export const layerFleet    = L.layerGroup().addTo(map);
 export const layerBridges  = L.layerGroup().addTo(map);
 export const layerGhost    = L.layerGroup().addTo(map); // always-visible reference paths
 export const layerRoutes   = L.layerGroup().addTo(map); // active A* route (above ghosts)
-export const layerMesh     = L.layerGroup().addTo(map);
-export const layerEV       = L.layerGroup().addTo(map);
+export const layerMesh        = L.layerGroup().addTo(map);
+export const layerEV          = L.layerGroup().addTo(map);
+export const layerInteractive = L.layerGroup().addTo(map); // user-placed signal zones
 
 // ── Shared mutable application state ──────────────────────────
 export const state = {
-  route:       "fastest",   // "fastest" | "safe" | "auto"
-  sliderVal:   50,
-  simActive:   false,
-  meshActive:  false,
-  evMarker:    null,
-  simInterval: null,
-  simStep:     0,
-  evPath:      [],          // set by main.js on route change
+  route:        "fastest",  // "fastest" | "safe" | "auto"
+  sliderVal:    50,
+  simActive:    false,
+  simPaused:    false,      // true while simulation is paused mid-journey
+  meshActive:   false,
+  evMarker:     null,
+  simInterval:  null,
+  simStep:      0,
+  evPath:       [],         // set by main.js on route change
   selectedHour: [6, 9, 12, 15, 18, 21].reduce((a, b) => Math.abs(b - new Date().getHours()) < Math.abs(a - new Date().getHours()) ? b : a),
 };

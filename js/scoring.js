@@ -193,29 +193,48 @@ const FLEET_MAX = 11;
  * @param {Object} coverageRadius — COVERAGE_RADIUS from data.js
  * @param {number} fleetNow       — vehicles/hr at the current hour
  * @param {Array}  weatherZones   — WEATHER_ZONES from data.js (optional)
+ * @param {Function} [getZonePenaltyAt] — optional fn(lat,lng)→number from interactiveZones.js
  * @returns {number} cost in metres (weighted)
  */
-export function edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow, weatherZones) {
+export function edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow, weatherZones, getZonePenaltyAt) {
   const t = sliderVal / 100; // 0 = speed-only, 1 = max connectivity
 
-  // ── Dead zone penalty (existing logic) ───────────────────────
-  let worstPenalty = 0;
-  let worstQuality = "none";
+  // ── Combined signal penalty (static towers + interactive zones) ──
+  // Overlap rule: at each point, the strongest signal wins (lowest penalty).
+  // Then the edge's cost is dictated by the worst point along its path.
+  let worstPointPenalty = 0;
+  
   for (const [lat, lng] of edge.coords) {
     const quality = getPointSignalQuality(lat, lng, towers, coverageRadius);
-    const pen     = DZ_PENALTY[quality] ?? 0;
-    if (pen > worstPenalty) { worstPenalty = pen; worstQuality = quality; }
+    let pointPen  = DZ_PENALTY[quality] ?? 0;
+
+    if (typeof getZonePenaltyAt === "function") {
+      const zp = getZonePenaltyAt(lat, lng);
+      if (zp !== -1) {
+        if (quality === "none") {
+          // No static tower here. The interactive zone is the only signal.
+          pointPen = zp;
+        } else {
+          // Overlap with a static tower. Highest signal strength wins (lowest penalty).
+          pointPen = Math.min(pointPen, zp);
+        }
+      }
+    }
+
+    if (pointPen > worstPointPenalty) { 
+      worstPointPenalty = pointPen; 
+    }
   }
 
-  // Mesh viability buffer (unchanged from original logic)
+  // Mesh viability buffer (unchanged from original logic, just uses penalty >= 6.0 now)
   const fleetRatio  = Math.min(1, (fleetNow ?? 0) / FLEET_MAX);
-  const meshBuffer  = (MESH_BUFFERED_QUALITIES.has(worstQuality) && t > 0)
-    ? fleetRatio * 0.9 * worstPenalty
+  const meshBuffer  = (worstPointPenalty >= 5.5 && t > 0)
+    ? fleetRatio * 0.9 * worstPointPenalty
     : 0;
 
-  const effectiveDZPenalty = Math.max(0, worstPenalty - meshBuffer);
+  const effectiveDZPenalty = Math.max(0, worstPointPenalty - meshBuffer);
 
-  // ── Weather zone penalty (new) ────────────────────────────────
+  // ── Weather zone penalty (unchanged) ─────────────────────────
   // Find the worst weather penalty along the edge coords.
   // Weather attenuation is independent of fleet relay — no mesh buffer applies.
   let worstWeatherPenalty = 0;
@@ -226,7 +245,7 @@ export function edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow, weat
     }
   }
 
-  // Combined cost: dead zone penalty + weather penalty both scale with t (slider)
+  // Combined penalty: signal penalty + weather penalty
   const totalPenalty = effectiveDZPenalty + worstWeatherPenalty;
   return edge.distM * (1 + t * totalPenalty);
 }

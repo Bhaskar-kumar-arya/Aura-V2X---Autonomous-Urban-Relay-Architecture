@@ -97,12 +97,13 @@ function reconstructPath(cameFrom, destId) {
  * @param {Object} coverageRadius — COVERAGE_RADIUS from data.js
  * @param {number} fleetNow       — vehicles/hr at current hour
  * @param {Array}  [weatherZones] — WEATHER_ZONES from data.js (optional)
+ * @param {Function} [getZonePenaltyAt] — optional fn(lat,lng)→number from interactiveZones.js
  * @returns {Array<[number, number]>|null}  [[lat, lng], ...] or null if no path
  */
 export function findRoute(
   adjacency, nodeCoords,
   originId, destId,
-  sliderVal, towers, coverageRadius, fleetNow, weatherZones
+  sliderVal, towers, coverageRadius, fleetNow, weatherZones, getZonePenaltyAt
 ) {
   const openSet  = new MinHeap();
   const gScore   = new Map(); // nodeId → best g-cost so far
@@ -125,7 +126,7 @@ export function findRoute(
     for (const edge of (adjacency.get(cur) ?? [])) {
       if (closed.has(edge.to)) continue;
 
-      const cost       = edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow, weatherZones);
+      const cost       = edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow, weatherZones, getZonePenaltyAt);
       const tentativeG = gScore.get(cur) + cost;
 
       if (tentativeG < (gScore.get(edge.to) ?? Infinity)) {

@@ -23,12 +23,15 @@ import { drawRoutes, drawDynamicRoute, drawGhostRoutes }  from "./drawRoutes.js"
 import { setMeshActive, appendLog }                       from "./sosTelemetry.js";
 import { updateMetrics, renderDensityChart,
          getRouteFromSlider, setSliderLabel }              from "./uiPanels.js";
-import { startSimulation, stopSimulation }                from "./simulation.js";
+import { startSimulation, stopSimulation,
+         pauseSimulation, resumeSimulation }             from "./simulation.js";
 import { fetchBothRoutes }                                from "./routing.js";
 import { computeConnScore, findDeadZoneSegment,
          estimateDZDuration, getWeatherPenalty }          from "./scoring.js";
 import { loadGraph, getNearestNode }                      from "./graph.js";
 import { findRoute }                                      from "./astar.js";
+import { initInteractiveZones, getZonePenaltyAt,
+         enableDropMode }                                  from "./interactiveZones.js";
 
 // ── Live route storage (OSRM fallback, pre-graph) ─────────────
 const routes = {
@@ -188,7 +191,8 @@ async function runAstar(sliderVal) {
   const path = findRoute(
     graphAdj, graphNodes,
     originNodeId, destNodeId,
-    sliderVal, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isWeatherEnabled ? WEATHER_ZONES : []
+    sliderVal, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isWeatherEnabled ? WEATHER_ZONES : [],
+    getZonePenaltyAt
   );
 
   if (!path) {
@@ -257,8 +261,8 @@ async function initGraph() {
     // These are always visible behind the active route to show the full solution space.
     const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
     const isW = document.getElementById("weather-toggle")?.checked ?? true;
-    ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
-    ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
+    ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : [], getZonePenaltyAt);
+    ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : [], getZonePenaltyAt);
     if (ghostFast && ghostSafe) {
       drawGhostRoutes(ghostFast, ghostSafe);
       console.log(`[ghost] fast=${ghostFast.length}coords  safe=${ghostSafe.length}coords  midFast=[${ghostFast[Math.floor(ghostFast.length/2)]}]  midSafe=[${ghostSafe[Math.floor(ghostSafe.length/2)]}]`);
@@ -446,8 +450,8 @@ function bindSlider() {
       if (graphReady) {
         // Recompute ghosts on weather toggle
         const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
-        ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, weatherToggle.checked ? WEATHER_ZONES : []);
-        ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, weatherToggle.checked ? WEATHER_ZONES : []);
+        ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, weatherToggle.checked ? WEATHER_ZONES : [], getZonePenaltyAt);
+        ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, weatherToggle.checked ? WEATHER_ZONES : [], getZonePenaltyAt);
         if (ghostFast && ghostSafe) drawGhostRoutes(ghostFast, ghostSafe);
         
         runAstar(parseInt(slider.value, 10));
@@ -460,9 +464,13 @@ function bindSimToggle() {
   document.getElementById("sim-toggle")?.addEventListener("change", function () {
     state.simActive = this.checked;
     if (state.simActive) {
+      state.simPaused = false;
+      updatePauseBtn();
       startSimulation();
     } else {
       stopSimulation();
+      state.simPaused = false;
+      updatePauseBtn();
       placeEV(state.evPath[0]);
       appendLog("warn", "■ Simulation stopped.");
     }
@@ -479,7 +487,46 @@ function bindKeyboardShortcuts() {
       const toggle = document.getElementById("sim-toggle");
       if (toggle) { toggle.checked = !toggle.checked; toggle.dispatchEvent(new Event("change")); }
     }
+    if (e.key === "p" || e.key === "P") {
+      if (state.simActive) togglePause();
+    }
   });
+}
+
+// ── Pause / Resume helpers ────────────────────────────────
+function updatePauseBtn() {
+  const btn = document.getElementById("pause-btn");
+  if (!btn) return;
+  if (!state.simActive) {
+    btn.textContent = "⏸ Pause";
+    btn.disabled = true;
+    btn.classList.remove("paused");
+  } else if (state.simPaused) {
+    btn.textContent = "▶ Resume";
+    btn.disabled = false;
+    btn.classList.add("paused");
+  } else {
+    btn.textContent = "⏸ Pause";
+    btn.disabled = false;
+    btn.classList.remove("paused");
+  }
+}
+
+function togglePause() {
+  if (!state.simActive) return;
+  if (state.simPaused) {
+    resumeSimulation();
+    appendLog("ready", "▶ Simulation resumed.");
+  } else {
+    pauseSimulation();
+    appendLog("warn", "⏸ Simulation paused.");
+  }
+  updatePauseBtn();
+}
+
+function bindPauseBtn() {
+  document.getElementById("pause-btn")?.addEventListener("click", togglePause);
+  updatePauseBtn();
 }
 
 function bindDensityChart() {
@@ -497,8 +544,8 @@ function bindDensityChart() {
             // Recompute ghost routes when density changes
             const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
             const isW = document.getElementById("weather-toggle")?.checked ?? true;
-            ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
-            ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
+            ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : [], getZonePenaltyAt);
+            ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : [], getZonePenaltyAt);
             if (ghostFast && ghostSafe) {
               drawGhostRoutes(ghostFast, ghostSafe);
             }
@@ -515,7 +562,7 @@ function bindDensityChart() {
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────
 async function init() {
   // 1. Static map layers
   drawCoverage();
@@ -529,15 +576,38 @@ async function init() {
   bindSimToggle();
   bindKeyboardShortcuts();
   bindDensityChart();
+  bindPauseBtn();
 
-  // 3. Immediate first paint with fallback data
+  // 3. Init interactive zones  — connects to runAstar as the onChange callback
+  initInteractiveZones(() => {
+    const slider = document.getElementById("priority-slider");
+    const val    = slider ? parseInt(slider.value, 10) : 50;
+    appendLog("warn", "⚠ Zone changed — recalculating route…");
+    // Recompute ghost routes too so the reference paths move
+    if (graphReady) {
+      const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
+      const isW = document.getElementById("weather-toggle")?.checked ?? true;
+      ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : [], getZonePenaltyAt);
+      ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : [], getZonePenaltyAt);
+      if (ghostFast && ghostSafe) drawGhostRoutes(ghostFast, ghostSafe);
+    }
+    runAstar(val);
+  });
+
+  // 4. "Add Zone" button — enables click-to-place mode
+  document.getElementById("btn-add-zone")?.addEventListener("click", () => {
+    enableDropMode();
+    appendLog("warn", "🟣 Click anywhere on the map to place a signal zone.");
+  });
+
+  // 5. Immediate first paint with fallback data
   state.evPath = routes.fastest;
   selectRouteFallback("fastest");
 
-  // 4. Fetch real OSRM routes (fast, used as visual placeholder)
+  // 6. Fetch real OSRM routes (fast, used as visual placeholder)
   await loadRealRoutes();
 
-  // 5. Load full OSM graph + activate A* engine
+  // 7. Load full OSM graph + activate A* engine
   //    (runs concurrently after OSRM so we show something immediately)
   initGraph(); // intentionally not awaited — happens in background
 }

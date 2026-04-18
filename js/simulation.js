@@ -52,6 +52,9 @@ export function startSimulation() {
   appendLog("warn", `▶ Simulation started — ${isFastest ? "FASTEST" : "SAFE"} route.`);
 
   state.simInterval = setInterval(() => {
+    // ── Pause gate ───────────────────────────────────
+    if (state.simPaused) return;  // freeze marker, keep interval alive
+
     const { simStep, evPath } = state;
 
     if (simStep >= evPath.length) {
@@ -83,4 +86,15 @@ export function stopSimulation() {
     clearInterval(state.simInterval);
     state.simInterval = null;
   }
+  state.simPaused = false;
+}
+
+/** Pause the simulation — marker freezes, interval stays alive. */
+export function pauseSimulation() {
+  state.simPaused = true;
+}
+
+/** Resume a paused simulation from exactly where it stopped. */
+export function resumeSimulation() {
+  state.simPaused = false;
 }

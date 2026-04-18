@@ -580,3 +580,200 @@ input[type="range"]::-webkit-slider-thumb:hover { box-shadow: 0 0 14px rgba(110,
 .wz-pin-storm { border-color: rgba(192, 132, 252, 0.6); box-shadow: 0 0 10px rgba(192, 132, 252, 0.4); }
 .wz-pin-icon { font-size: 14px; }
 .wz-pin-label { font-size: 9px; font-family: var(--font-mono); font-weight: 600; color: var(--text-primary); }
+
+/* ===== SIM CONTROLS (toggle + pause) ===== */
+.sim-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ===== PAUSE BUTTON ===== */
+.pause-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(110,231,247,0.25);
+  background: rgba(110,231,247,0.07);
+  color: var(--cyan);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.pause-btn:hover:not(:disabled) {
+  background: rgba(110,231,247,0.15);
+  border-color: rgba(110,231,247,0.5);
+  box-shadow: 0 0 10px rgba(110,231,247,0.2);
+}
+.pause-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.pause-btn.paused {
+  border-color: rgba(34,197,94,0.4);
+  background: rgba(34,197,94,0.1);
+  color: var(--green);
+}
+.pause-btn.paused:hover {
+  background: rgba(34,197,94,0.18);
+  box-shadow: 0 0 10px rgba(34,197,94,0.2);
+}
+
+/* ===== SIGNAL ZONES PANEL ===== */
+.zone-help-text {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+
+.zone-chip-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(239,68,68,0.5);
+  background: rgba(239,68,68,0.07);
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.3px;
+  margin-bottom: 12px;
+}
+.zone-chip-btn:hover {
+  background: rgba(239,68,68,0.14);
+  border-color: rgba(239,68,68,0.7);
+  box-shadow: 0 0 12px rgba(239,68,68,0.15);
+  transform: translateY(-1px);
+}
+.zone-chip-btn:active {
+  transform: translateY(0);
+}
+.zone-btn-icon { font-size: 14px; }
+
+.zone-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.zone-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.zl-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 5px currentColor;
+}
+
+/* ===== CROSSHAIR CURSOR IN DROP MODE ===== */
+.iz-crosshair { cursor: crosshair !important; }
+.iz-crosshair * { cursor: crosshair !important; }
+
+/* ===== INTERACTIVE ZONE POPUP ===== */
+.iz-popup-container .leaflet-popup-content-wrapper {
+  min-width: 240px;
+}
+
+.iz-popup {
+  font-family: var(--font-main);
+  padding: 2px 0;
+}
+
+.iz-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.iz-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s;
+  box-shadow: 0 0 7px currentColor;
+}
+.iz-popup-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.iz-popup-title em {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.iz-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.iz-slider-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.iz-slider-wrap {
+  flex: 1;
+}
+/* The iz-slider uses the same global range styling */
+.iz-slider-val {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  min-width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.iz-meta {
+  font-size: 11px;
+  margin-bottom: 12px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.iz-quality {
+  font-weight: 600;
+  transition: color 0.3s;
+}
+
+.iz-remove-btn {
+  display: block;
+  width: 100%;
+  padding: 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.07);
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-align: center;
+}
+.iz-remove-btn:hover {
+  background: rgba(239,68,68,0.18);
+  border-color: rgba(239,68,68,0.6);
+}
