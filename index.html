@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>V2V Mesh Routing — HARMAN Connected Mobility Demo</title>
+  <meta name="description" content="An interactive demo of C-V2X Vehicle-to-Vehicle mesh routing for emergency vehicles traversing cellular dead zones." />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header id="app-header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="13" stroke="#6ee7f7" stroke-width="1.5"/>
+          <path d="M7 14 Q14 4 21 14 Q14 24 7 14Z" fill="#6ee7f7" opacity="0.3"/>
+          <circle cx="14" cy="14" r="3" fill="#6ee7f7"/>
+          <circle cx="7" cy="14" r="2" fill="#38bdf8"/>
+          <circle cx="21" cy="14" r="2" fill="#38bdf8"/>
+          <line x1="9" y1="14" x2="12" y2="14" stroke="#6ee7f7" stroke-width="1.5"/>
+          <line x1="16" y1="14" x2="19" y2="14" stroke="#6ee7f7" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="header-title">
+        <span class="title-main">V2V MeshRoute</span>
+        <span class="title-sub">Cellular-Aware Routing with C-V2X Fallback</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="sim-toggle-wrapper">
+        <span class="toggle-label">Simulation</span>
+        <label class="sim-toggle" id="sim-toggle-label">
+          <input type="checkbox" id="sim-toggle" />
+          <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+          </span>
+        </label>
+      </div>
+      <div class="badge" id="system-status-badge">● SYSTEM READY</div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <div id="app-layout">
+
+    <!-- LEFT PANEL -->
+    <aside id="left-panel">
+      <section class="panel-section">
+        <h2 class="section-title">Route Selection</h2>
+        <div class="route-buttons">
+          <button class="route-btn active" id="btn-fastest">
+            <span class="route-icon" style="background:#ef4444"></span>
+            <div>
+              <div class="route-btn-label">Fastest Route</div>
+              <div class="route-btn-sub">Through dead zone</div>
+            </div>
+          </button>
+          <button class="route-btn" id="btn-safe">
+            <span class="route-icon" style="background:#22c55e"></span>
+            <div>
+              <div class="route-btn-label">Safe Route</div>
+              <div class="route-btn-sub">Max connectivity</div>
+            </div>
+          </button>
+          <button class="route-btn" id="btn-auto">
+            <span class="route-icon" style="background:#a855f7"></span>
+            <div>
+              <div class="route-btn-label">Auto (AI)</div>
+              <div class="route-btn-sub">Balances both</div>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2 class="section-title">Priority Slider</h2>
+        <div class="slider-row">
+          <span class="slider-end-label speed">⚡ Speed</span>
+          <div class="slider-container">
+            <input type="range" id="priority-slider" min="0" max="100" value="50" />
+            <div class="slider-track-fill" id="slider-fill"></div>
+          </div>
+          <span class="slider-end-label signal">📶 Signal</span>
+        </div>
+        <div class="slider-value-label" id="slider-value-label">Balanced</div>
+        <div class="p2p-toggle-wrapper" style="margin-top: 16px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.04); padding: 10px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+          <span style="font-size: 0.8rem; color: #a1a1aa; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Enable C-V2X / P2P Mesh</span>
+          <label class="sim-toggle">
+            <input type="checkbox" id="p2p-toggle" checked />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2 class="section-title">Coverage Legend</h2>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-dot" style="background:#ef4444;box-shadow:0 0 6px #ef4444"></span> Dead Zone (RSSI &lt; −100 dBm)</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#f59e0b;box-shadow:0 0 6px #f59e0b"></span> Weak Signal (−100 to −85 dBm)</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#22c55e;box-shadow:0 0 6px #22c55e"></span> Strong Signal (&gt; −85 dBm)</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#38bdf8;box-shadow:0 0 8px #38bdf8"></span> C-V2X Bridge Node</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#a855f7;box-shadow:0 0 6px #a855f7"></span> Fleet Vehicle</div>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2 class="section-title">Fleet Density</h2>
+        <div class="density-chart">
+          <div class="density-bar-row" id="density-bars">
+            <!-- Rendered by JS -->
+          </div>
+          <div class="density-time-labels">
+            <span>6AM</span><span>9AM</span><span>12PM</span><span>3PM</span><span>6PM</span><span>9PM</span>
+          </div>
+        </div>
+        <div class="density-note" id="density-note">⏱ Current window: <strong id="density-window">High Density</strong></div>
+      </section>
+    </aside>
+
+    <!-- MAP -->
+    <main id="map-container">
+      <div id="map"></div>
+
+      <!-- MESH OVERLAY NOTIFICATION -->
+      <div id="mesh-notification" class="mesh-notification hidden">
+        <div class="mesh-notif-icon">📡</div>
+        <div class="mesh-notif-text">
+          <div class="mesh-notif-title">C-V2X Mesh Relay Active</div>
+          <div class="mesh-notif-sub">Cellular dropout detected — routing telematics via <strong>2 Bridge Nodes</strong></div>
+        </div>
+        <div class="mesh-pulse"></div>
+      </div>
+    </main>
+
+    <!-- RIGHT PANEL -->
+    <aside id="right-panel">
+
+      <!-- ACTIVE ROUTE CARD -->
+      <section class="panel-section" id="route-card">
+        <h2 class="section-title">Active Route</h2>
+        <div class="route-metric-row">
+          <div class="metric-block">
+            <div class="metric-value" id="metric-eta">14 min</div>
+            <div class="metric-label">ETA</div>
+          </div>
+          <div class="metric-divider"></div>
+          <div class="metric-block">
+            <div class="metric-value" id="metric-distance">6.2 km</div>
+            <div class="metric-label">Distance</div>
+          </div>
+        </div>
+
+        <div class="score-bar-wrap">
+          <div class="score-bar-label">
+            <span>Connectivity Score</span>
+            <span id="conn-score-value" class="score-num">72</span>
+          </div>
+          <div class="score-bar-bg">
+            <div class="score-bar-fill" id="conn-score-bar" style="width:72%;background:linear-gradient(90deg,#f59e0b,#22c55e)"></div>
+          </div>
+        </div>
+
+        <div class="score-bar-wrap" style="margin-top:10px">
+          <div class="score-bar-label">
+            <span>Mesh Viability Score</span>
+            <span id="mesh-score-value" class="score-num">84</span>
+          </div>
+          <div class="score-bar-bg">
+            <div class="score-bar-fill" id="mesh-score-bar" style="width:84%;background:linear-gradient(90deg,#38bdf8,#a855f7)"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DEAD ZONE PANEL -->
+      <section class="panel-section" id="dead-zone-panel">
+        <h2 class="section-title">Dead Zone Analysis</h2>
+        <div class="dz-item">
+          <span class="dz-label">Zone ID</span><span class="dz-val" id="dz-id">DZ-04</span>
+        </div>
+        <div class="dz-item">
+          <span class="dz-label">RSSI</span><span class="dz-val" id="dz-rssi">−107 dBm</span>
+        </div>
+        <div class="dz-item">
+          <span class="dz-label">Duration</span><span class="dz-val" id="dz-duration">~38 sec</span>
+        </div>
+        <div class="dz-item">
+          <span class="dz-label">Bridge Nodes</span><span class="dz-val cyan" id="dz-bridges">2 available</span>
+        </div>
+        <div class="dz-item">
+          <span class="dz-label">Fleet (±500m)</span><span class="dz-val green" id="dz-fleet">6 vehicles</span>
+        </div>
+        <div class="dz-warning" id="dz-warning">
+          ⚠ Store-and-forward mode: SOS packets buffered, relayed via C-V2X at zone boundary.
+        </div>
+      </section>
+
+      <!-- SOS TELEMATICS PANEL -->
+      <section class="panel-section" id="sos-panel">
+        <div class="sos-header">
+          <div class="sos-dot" id="sos-dot"></div>
+          <h2 class="section-title" style="margin:0">SOS Telematics</h2>
+        </div>
+        <div class="sos-log" id="sos-log">
+          <div class="log-entry ready">✔ System initialized. GPS locked.</div>
+          <div class="log-entry ready">✔ Fleet density check: HIGH (11 veh/hr)</div>
+          <div class="log-entry ready">✔ Bridge node DZ-04-A: in range</div>
+          <div class="log-entry ready">✔ Bridge node DZ-04-B: in range</div>
+        </div>
+        <div class="sos-gps" id="sos-gps">
+          <span class="gps-label">Last GPS Fix</span>
+          <span class="gps-val" id="gps-coords">40.7282, −73.9942</span>
+        </div>
+        <div class="relay-window" id="relay-window-wrap">
+          <span class="relay-label">Relay Window</span>
+          <span class="relay-val" id="relay-val">—</span>
+        </div>
+      </section>
+
+      <!-- ROUTE COMPARISON TABLE -->
+      <section class="panel-section" id="comparison-section">
+        <h2 class="section-title">Route Comparison</h2>
+        <table class="compare-table">
+          <thead>
+            <tr><th></th><th>Fastest</th><th>Safe</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>ETA</td><td id="ct-eta-fast">14 min</td><td id="ct-eta-safe">19 min</td></tr>
+            <tr><td>Connectivity</td><td id="ct-conn-fast" class="red-val">42%</td><td id="ct-conn-safe" class="green-val">91%</td></tr>
+            <tr><td>Dead Zones</td><td id="ct-dz-fast" class="red-val">1 zone</td><td id="ct-dz-safe" class="green-val">None</td></tr>
+            <tr><td>Mesh Viable</td><td id="ct-mesh-fast" class="cyan-val">Yes (84%)</td><td id="ct-mesh-safe">N/A</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </aside>
+  </div>
+
+  <!-- MODE BADGE (bottom center) -->
+  <div id="mode-badge">🔬 SIMULATION MODE — Historical Fleet Data Active</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
