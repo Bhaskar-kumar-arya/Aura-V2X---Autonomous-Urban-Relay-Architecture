@@ -120,7 +120,7 @@ async function runAstar(sliderVal) {
   // CRITICAL: If the user disables P2P, we force fleet density to 0 for this run,
   // which mathematically removes the mesh-buffer discount in the A* engine.
   const fleetNow = isP2pEnabled 
-    ? FLEET_DENSITY_24H[new Date().getHours()] 
+    ? FLEET_DENSITY_24H[state.selectedHour] 
     : 0;
 
   console.log(`[A*] sliderVal=${sliderVal}  fleetNow=${fleetNow}  origin=${originNodeId}  dest=${destNodeId}`);
@@ -194,7 +194,7 @@ async function initGraph() {
 
     // Pre-compute the two extreme A* paths for the ghost route overlay.
     // These are always visible behind the active route to show the full solution space.
-    const fleetNow = FLEET_DENSITY_24H[new Date().getHours()];
+    const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
     ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
     ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
     if (ghostFast && ghostSafe) {
@@ -336,7 +336,7 @@ function onSliderChange(val) {
     const conn     = Math.round(cF + (cS - cF) * t);
     const etaMins  = Math.round(14 + (22 - 14) * t);
     const distKm   = (6.2 + (8.5 - 6.2) * t).toFixed(1);
-    const mesh     = computeMeshViabilityScore(numVal, FLEET_DENSITY_24H[new Date().getHours()]);
+    const mesh     = computeMeshViabilityScore(numVal, FLEET_DENSITY_24H[state.selectedHour]);
     updateMetrics({ eta: `${etaMins} min`, dist: `${distKm} km`, conn, mesh });
 
   } else {
@@ -404,6 +404,38 @@ function bindKeyboardShortcuts() {
   });
 }
 
+function bindDensityChart() {
+  const wrap = document.getElementById("density-bars");
+  if (wrap) {
+    wrap.addEventListener("click", (e) => {
+      const bar = e.target.closest(".density-bar");
+      if (bar) {
+        const h = parseInt(bar.dataset.hour, 10);
+        if (!isNaN(h) && h !== state.selectedHour) {
+          state.selectedHour = h;
+          renderDensityChart();
+
+          if (graphReady) {
+            // Recompute ghost routes when density changes
+            const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
+            ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
+            ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
+            if (ghostFast && ghostSafe) {
+              drawGhostRoutes(ghostFast, ghostSafe);
+            }
+            
+            const slider = document.getElementById("priority-slider");
+            const sliderVal = slider ? parseInt(slider.value, 10) : 50;
+            runAstar(sliderVal);
+          } else {
+            selectRouteFallback(state.route);
+          }
+        }
+      }
+    });
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
   // 1. Static map layers
@@ -416,6 +448,7 @@ async function init() {
   bindSlider();
   bindSimToggle();
   bindKeyboardShortcuts();
+  bindDensityChart();
 
   // 3. Immediate first paint with fallback data
   state.evPath = routes.fastest;

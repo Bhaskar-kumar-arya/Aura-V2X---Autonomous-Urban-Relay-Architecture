@@ -37,4 +37,5 @@ export const state = {
   simInterval: null,
   simStep:     0,
   evPath:      [],          // set by main.js on route change
+  selectedHour: [6, 9, 12, 15, 18, 21].reduce((a, b) => Math.abs(b - new Date().getHours()) < Math.abs(a - new Date().getHours()) ? b : a),
 };

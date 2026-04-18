@@ -5,6 +5,7 @@
  */
 
 import { FLEET_DENSITY_24H } from "./data.js";
+import { state } from "./mapInit.js";
 
 // ── Score bar animation ────────────────────────────────────────
 /**
@@ -66,23 +67,24 @@ export function updateMetrics({ eta, dist, conn, mesh }) {
 /** Render the 6-column fleet density bar chart and update the density label. */
 export function renderDensityChart() {
   const wrap   = document.getElementById("density-bars");
-  const hour   = new Date().getHours();
+  const hour   = state.selectedHour;
   const max    = Math.max(...FLEET_DENSITY_24H);
   const hours  = [6, 9, 12, 15, 18, 21];
   const values = hours.map(h => FLEET_DENSITY_24H[h]);
 
   wrap.innerHTML = values.map((v, i) => {
-    const isNow = Math.abs(hours[i] - hour) <= 2;
+    const isNow = hours[i] === hour;
     const pct   = Math.round((v / max) * 100);
     const color = v >= 8 ? "#22c55e" : v >= 4 ? "#f59e0b" : "#ef4444";
-    return `<div class="density-bar" style="height:${pct}%;background:${color};opacity:${isNow ? 1 : 0.55};${isNow ? `box-shadow:0 0 6px ${color}` : ""}"></div>`;
+    return `<div class="density-bar" data-hour="${hours[i]}" style="height:${pct}%;background:${color};opacity:${isNow ? 1 : 0.4};${isNow ? `box-shadow:0 0 8px ${color}` : ""}" title="Select ${hours[i]}:00"></div>`;
   }).join("");
 
   const nowVal  = FLEET_DENSITY_24H[hour];
+  const timeStr = hour > 12 ? `${hour-12} PM` : hour === 12 ? `12 PM` : `${hour} AM`;
   const label   = nowVal >= 8 ? "High Density" : nowVal >= 4 ? "Medium Density" : "Low Density";
   const color   = nowVal >= 8 ? "var(--green)"  : nowVal >= 4 ? "var(--amber)"   : "var(--red)";
   const el      = document.getElementById("density-window");
-  if (el) { el.textContent = label; el.style.color = color; }
+  if (el) { el.innerHTML = `${timeStr} &mdash; ${label}`; el.style.color = color; }
 
   // Push mesh viability score based on density
   const meshViab = Math.min(100, Math.round((nowVal / max) * 100) + 30);
