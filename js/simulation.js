@@ -9,14 +9,42 @@ import { placeEV, drawFleet } from "./drawMarkers.js";
 import { appendLog, setMeshActive } from "./sosTelemetry.js";
 import { FLEET_VEHICLES } from "./data.js";
 
-const STEP_INTERVAL_MS = 1800;
+const STEP_INTERVAL_MS = 500;
 
 // ── Dead-zone step indices on the FASTEST route ────────────────
 const DZ_ENTRY_STEP    = 3;   // vehicle enters dead zone
 const DZ_RELAY_STEP    = 5;   // first successful relay
 const DZ_EXIT_STEP     = 6;   // cellular restored
 
-// ── Internal helpers ───────────────────────────────────────────
+let simTotalDist = 0;
+let simTotalEta = 0;
+
+function getRemainingDistance(coords, simStep) {
+  if (!coords || simStep >= coords.length - 1) return 0;
+  let total = 0;
+  const R = 6_371_000, toR = d => (d * Math.PI) / 180;
+  for (let i = simStep + 1; i < coords.length; i++) {
+    const [la, lo] = coords[i - 1];
+    const [lb, lp] = coords[i];
+    const dLat = toR(lb - la), dLng = toR(lp - lo);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toR(la)) * Math.cos(toR(lb)) * Math.sin(dLng / 2) ** 2;
+    total += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  return total / 1000;
+}
+
+function updateMetricsDynamically(simStep, evPath) {
+  const remDist = getRemainingDistance(evPath, simStep);
+  const distEl = document.getElementById("metric-distance");
+  if (distEl) distEl.textContent = remDist.toFixed(2) + " km";
+
+  const totalDist = simTotalDist || getRemainingDistance(evPath, 0) || 1;
+  const totalEta = simTotalEta || 14; 
+  const eta = Math.round(totalEta * (remDist / totalDist));
+  const etaEl = document.getElementById("metric-eta");
+  if (etaEl) etaEl.textContent = Math.max(0, eta) + " min";
+}
+
 function updateGPS(pos) {
   const el = document.getElementById("gps-coords");
   if (el) el.textContent = `${pos[0].toFixed(4)}, ${pos[1].toFixed(4)}`;
@@ -51,6 +79,11 @@ export function startSimulation() {
   const isFastest = state.route !== "safe";
   appendLog("warn", `▶ Simulation started — ${isFastest ? "FASTEST" : "SAFE"} route.`);
 
+  // Initialize sim metrics
+  simTotalDist = getRemainingDistance(state.evPath, 0);
+  const etaText = document.getElementById("metric-eta")?.textContent || "14";
+  simTotalEta = parseInt(etaText, 10) || 14;
+
   state.simInterval = setInterval(() => {
     // ── Pause gate ───────────────────────────────────
     if (state.simPaused) return;  // freeze marker, keep interval alive
@@ -66,6 +99,7 @@ export function startSimulation() {
     const pos = evPath[simStep];
     placeEV(pos);
     updateGPS(pos);
+    updateMetricsDynamically(simStep, evPath);
     handleDeadZoneEvents(simStep, isFastest);
 
     // Micro-drift fleet vehicles to simulate live traffic
