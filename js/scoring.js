@@ -9,6 +9,9 @@
 //   green > yellow > orange > red > none
 const QUALITY_WEIGHT = { green: 1.0, yellow: 0.6, orange: 0.3, red: 0.0, none: 0.5 };
 
+/** Weather severity → connectivity score multiplier (1−factor applied to quality weight) */
+const WEATHER_QUALITY_FACTOR = { light: 0.10, heavy: 0.30, storm: 0.60 };
+
 // ── Haversine distance (no Leaflet needed) ─────────────────────
 /**
  * Distance in metres between two lat/lng points.
@@ -135,6 +138,28 @@ export function estimateDZDuration(dzSegment, speedKmh = 50) {
   return Math.max(0, Math.round(totalMetres / speedMs));
 }
 
+// ── Weather zone penalty ──────────────────────────────────────
+/**
+ * Return the highest weather signal penalty at a given lat/lng.
+ * Returns 0 if no weather zone covers the point.
+ *
+ * @param {number} lat
+ * @param {number} lng
+ * @param {Array}  weatherZones — WEATHER_ZONES from data.js (may be null/undefined)
+ * @returns {number} penalty factor (0 = none, 4.0 = severe storm)
+ */
+export function getWeatherPenalty(lat, lng, weatherZones) {
+  if (!weatherZones || weatherZones.length === 0) return 0;
+  let worst = 0;
+  for (const wz of weatherZones) {
+    const dist = haversineDistance(lat, lng, wz.lat, wz.lng);
+    if (dist <= wz.radiusM) {
+      if (wz.signalPenalty > worst) worst = wz.signalPenalty;
+    }
+  }
+  return worst;
+}
+
 // ── A* edge cost function ──────────────────────────────────────
 /**
  * Dead zone penalty multipliers per signal quality tier.
@@ -159,18 +184,21 @@ const FLEET_MAX = 11;
  *   - High fleet density at the current hour → mesh relay is viable →
  *     the dead-zone penalty is partially discounted ("mesh buffer"),
  *     because a nearby bridge node can absorb the SOS payload.
+ *   - Weather zones add an additive penalty proportional to their severity.
+ *     Storm cells (penalty=4.0) are nearly as bad as dead zones.
  *
  * @param {{ distM: number, coords: [number,number][] }} edge
  * @param {number} sliderVal      — 0–100
  * @param {Array}  towers         — CELL_TOWERS from data.js
  * @param {Object} coverageRadius — COVERAGE_RADIUS from data.js
  * @param {number} fleetNow       — vehicles/hr at the current hour
+ * @param {Array}  weatherZones   — WEATHER_ZONES from data.js (optional)
  * @returns {number} cost in metres (weighted)
  */
-export function edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow) {
+export function edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow, weatherZones) {
   const t = sliderVal / 100; // 0 = speed-only, 1 = max connectivity
 
-  // Find the worst quality and highest raw penalty along this edge
+  // ── Dead zone penalty (existing logic) ───────────────────────
   let worstPenalty = 0;
   let worstQuality = "none";
   for (const [lat, lng] of edge.coords) {
@@ -179,20 +207,26 @@ export function edgeCost(edge, sliderVal, towers, coverageRadius, fleetNow) {
     if (pen > worstPenalty) { worstPenalty = pen; worstQuality = quality; }
   }
 
-  // Mesh viability buffer: only applies to full red dead zones (the V2V relay story).
-  // Orange zones (infrastructure gaps) aren't reachable by bridge nodes — no discount.
-  //
-  // Buffer fires whenever the slider is above 0 AND P2P is available (fleetNow > 0).
-  // At full fleet (fleetRatio=1.0) the discount is 90% of the raw penalty, making the
-  // dead zone nearly free to traverse. At fleetNow=0 (P2P toggled off) the buffer is 0
-  // and the full 6× penalty applies — enough to trigger a detour across the entire
-  // slider range, making the P2P toggle dramatic and clearly visible.
+  // Mesh viability buffer (unchanged from original logic)
   const fleetRatio  = Math.min(1, (fleetNow ?? 0) / FLEET_MAX);
   const meshBuffer  = (MESH_BUFFERED_QUALITIES.has(worstQuality) && t > 0)
     ? fleetRatio * 0.9 * worstPenalty
     : 0;
 
-  const effectivePenalty = Math.max(0, worstPenalty - meshBuffer);
-  return edge.distM * (1 + t * effectivePenalty);
-}
+  const effectiveDZPenalty = Math.max(0, worstPenalty - meshBuffer);
 
+  // ── Weather zone penalty (new) ────────────────────────────────
+  // Find the worst weather penalty along the edge coords.
+  // Weather attenuation is independent of fleet relay — no mesh buffer applies.
+  let worstWeatherPenalty = 0;
+  if (weatherZones && weatherZones.length > 0) {
+    for (const [lat, lng] of edge.coords) {
+      const wp = getWeatherPenalty(lat, lng, weatherZones);
+      if (wp > worstWeatherPenalty) worstWeatherPenalty = wp;
+    }
+  }
+
+  // Combined cost: dead zone penalty + weather penalty both scale with t (slider)
+  const totalPenalty = effectiveDZPenalty + worstWeatherPenalty;
+  return edge.distM * (1 + t * totalPenalty);
+}

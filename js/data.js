@@ -93,3 +93,29 @@ export const BRIDGE_NODES = [
 export const FLEET_DENSITY_24H = [
   1, 0, 0, 0, 1, 2, 5, 8, 11, 9, 8, 9, 10, 9, 8, 9, 10, 11, 10, 8, 6, 5, 3, 2,
 ];
+
+/**
+ * Weather zones — atmospheric disruptions that degrade C-V2X / cellular signal.
+ *
+ * severity: "light" | "heavy" | "storm"
+ *   light  — rain attenuation ~5–10 dB  → signalPenalty 0.5  (mild)
+ *   heavy  — rain attenuation ~15–20 dB → signalPenalty 1.8  (moderate dead-zone-like)
+ *   storm  — severe attenuation >25 dB  → signalPenalty 4.0  (near dead-zone severity)
+ *
+ * radiusM: radius in metres of the affected area
+ * The A* engine multiplies edgeCost by (1 + sliderWeight * signalPenalty) when a
+ * route segment passes through the weather circle.
+ */
+export const WEATHER_ZONES = [
+  {
+    id:            "WZ-01",
+    label:         "Severe Storm Cell",
+    lat:           40.7314,
+    lng:           -74.0041,
+    severity:      "storm",
+    radiusM:       450,
+    signalPenalty: 4.0,
+    rssiDrop:      "-28 dB",
+    description:   "Active thunderstorm — severe multipath interference",
+  }
+];

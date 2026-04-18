@@ -102,6 +102,13 @@
             <span class="toggle-track"><span class="toggle-thumb"></span></span>
           </label>
         </div>
+        <div class="p2p-toggle-wrapper" style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.04); padding: 10px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+          <span style="font-size: 0.8rem; color: #a1a1aa; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Enable Severe Weather</span>
+          <label class="sim-toggle">
+            <input type="checkbox" id="weather-toggle" checked />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
       </section>
 
       <section class="panel-section">
@@ -112,6 +119,10 @@
           <div class="legend-item"><span class="legend-dot" style="background:#22c55e;box-shadow:0 0 6px #22c55e"></span> Strong Signal (&gt; −85 dBm)</div>
           <div class="legend-item"><span class="legend-dot" style="background:#38bdf8;box-shadow:0 0 8px #38bdf8"></span> C-V2X Bridge Node</div>
           <div class="legend-item"><span class="legend-dot" style="background:#a855f7;box-shadow:0 0 6px #a855f7"></span> Fleet Vehicle</div>
+          <div class="legend-divider" style="height:1px;background:rgba(255,255,255,0.1);margin:4px 0"></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#7dd3fc;box-shadow:0 0 6px #7dd3fc"></span> 🌧 Light Rain (−7 dB)</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#818cf8;box-shadow:0 0 6px #818cf8"></span> ⛈ Heavy Rain (−18 dB)</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#c084fc;box-shadow:0 0 8px #c084fc"></span> 🌩 Storm Cell (−28 dB)</div>
         </div>
       </section>
 
@@ -204,6 +215,15 @@
         <div class="dz-warning" id="dz-warning">
           ⚠ Store-and-forward mode: SOS packets buffered, relayed via C-V2X at zone boundary.
         </div>
+      </section>
+
+      <!-- WEATHER IMPACT PANEL -->
+      <section class="panel-section" id="weather-panel">
+        <h2 class="section-title">Weather Impact</h2>
+        <div id="wz-active-rows">
+          <!-- Rendered via JS -->
+        </div>
+        <div id="wz-impact-badge" class="wz-badge wz-badge-clear">✔ CLEAR</div>
       </section>
 
       <!-- SOS TELEMATICS PANEL -->

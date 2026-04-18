@@ -14,18 +14,19 @@ import { state }                                          from "./mapInit.js";
 import { ROUTE_ORIGIN, ROUTE_DESTINATION, SAFE_WAYPOINT,
          FALLBACK_FASTEST, FALLBACK_SAFE,
          CELL_TOWERS, COVERAGE_RADIUS,
-         FLEET_DENSITY_24H }                              from "./data.js";
+         FLEET_DENSITY_24H, WEATHER_ZONES }               from "./data.js";
 
 import { drawCoverage }                                   from "./drawCoverage.js";
+import { drawWeatherZones }                               from "./drawWeather.js";
 import { drawTowers, drawFleet, drawBridges, placeEV }    from "./drawMarkers.js";
-import { drawRoutes, drawDynamicRoute, drawGhostRoutes }            from "./drawRoutes.js";
+import { drawRoutes, drawDynamicRoute, drawGhostRoutes }  from "./drawRoutes.js";
 import { setMeshActive, appendLog }                       from "./sosTelemetry.js";
 import { updateMetrics, renderDensityChart,
          getRouteFromSlider, setSliderLabel }              from "./uiPanels.js";
-import { startSimulation, stopSimulation }                 from "./simulation.js";
+import { startSimulation, stopSimulation }                from "./simulation.js";
 import { fetchBothRoutes }                                from "./routing.js";
 import { computeConnScore, findDeadZoneSegment,
-         estimateDZDuration }                             from "./scoring.js";
+         estimateDZDuration, getWeatherPenalty }          from "./scoring.js";
 import { loadGraph, getNearestNode }                      from "./graph.js";
 import { findRoute }                                      from "./astar.js";
 
@@ -84,6 +85,64 @@ function updateDeadZonePanel(dzSegment) {
   if (el) el.textContent = duration > 0 ? `~${duration} sec` : "N/A";
 }
 
+// ── Weather panel ─────────────────────────────────────────────
+function updateWeatherPanel(path) {
+  const rows = document.getElementById("wz-active-rows");
+  if (!rows) return;
+
+  const isWeatherEnabled = document.getElementById("weather-toggle")?.checked ?? true;
+  if (!isWeatherEnabled) {
+    rows.innerHTML = `<div class="wz-row wz-none">Weather effects disabled</div>`;
+    const badge = document.getElementById("wz-impact-badge");
+    if (badge) {
+      badge.textContent = "✔ OFF";
+      badge.className = "wz-badge wz-badge-clear";
+    }
+    return;
+  }
+
+  const hit = WEATHER_ZONES.filter(wz =>
+    path.some(([lat, lng]) => {
+      const dx = lat - wz.lat, dy = lng - wz.lng;
+      return Math.sqrt(dx * dx + dy * dy) * 111_000 <= wz.radiusM;
+    })
+  );
+
+  const severityIcon  = { light: "🌧", heavy: "⛈", storm: "🌩" };
+  const severityClass = { light: "wz-light", heavy: "wz-heavy", storm: "wz-storm" };
+
+  if (hit.length === 0) {
+    rows.innerHTML = `<div class="wz-row wz-none">✔ No weather zones on active route</div>`;
+  } else {
+    rows.innerHTML = hit.map(wz => `
+      <div class="wz-row">
+        <span class="wz-row-icon">${severityIcon[wz.severity] ?? "🌧"}</span>
+        <div class="wz-row-info">
+          <span class="wz-row-label ${severityClass[wz.severity]}">${wz.label} <em>${wz.id}</em></span>
+          <span class="wz-row-meta">Drop: <strong>${wz.rssiDrop}</strong> &nbsp;|&nbsp; Penalty ×${wz.signalPenalty}</span>
+        </div>
+      </div>`).join("");
+  }
+
+  const badge = document.getElementById("wz-impact-badge");
+  if (badge) {
+    if (hit.some(z => z.severity === "storm")) {
+      badge.textContent = "⚠ SEVERE IMPACT";
+      badge.className = "wz-badge wz-badge-storm";
+    } else if (hit.some(z => z.severity === "heavy")) {
+      badge.textContent = "⚡ MODERATE IMPACT";
+      badge.className = "wz-badge wz-badge-heavy";
+    } else if (hit.length > 0) {
+      badge.textContent = "🌧 LIGHT IMPACT";
+      badge.className = "wz-badge wz-badge-light";
+    } else {
+      badge.textContent = "✔ CLEAR";
+      badge.className = "wz-badge wz-badge-clear";
+    }
+  }
+}
+
+
 // ── Route comparison table ────────────────────────────────────
 function updateComparisonTable() {
   const { fastest: cF, safe: cS } = routes.scores;
@@ -115,6 +174,7 @@ async function runAstar(sliderVal) {
   if (!graphReady || !originNodeId || !destNodeId) return;
 
   const isP2pEnabled = document.getElementById("p2p-toggle")?.checked ?? true;
+  const isWeatherEnabled = document.getElementById("weather-toggle")?.checked ?? true;
 
   // Use historical fleet density to determine mesh viability.
   // CRITICAL: If the user disables P2P, we force fleet density to 0 for this run,
@@ -128,7 +188,7 @@ async function runAstar(sliderVal) {
   const path = findRoute(
     graphAdj, graphNodes,
     originNodeId, destNodeId,
-    sliderVal, CELL_TOWERS, COVERAGE_RADIUS, fleetNow
+    sliderVal, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isWeatherEnabled ? WEATHER_ZONES : []
   );
 
   if (!path) {
@@ -164,6 +224,7 @@ async function runAstar(sliderVal) {
   // Panel updates
   updateMetrics({ eta: `${etaMins} min`, dist: `${distKm} km`, conn: connScore, mesh: meshScore });
   updateDeadZonePanel(dzSegment);
+  updateWeatherPanel(path);
 
   // Keep comparison table in sync with live fastest / safe scores
   routes.scores.fastest = computeConnScore(routes.fastest, CELL_TOWERS, COVERAGE_RADIUS);
@@ -195,8 +256,9 @@ async function initGraph() {
     // Pre-compute the two extreme A* paths for the ghost route overlay.
     // These are always visible behind the active route to show the full solution space.
     const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
-    ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
-    ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
+    const isW = document.getElementById("weather-toggle")?.checked ?? true;
+    ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
+    ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
     if (ghostFast && ghostSafe) {
       drawGhostRoutes(ghostFast, ghostSafe);
       console.log(`[ghost] fast=${ghostFast.length}coords  safe=${ghostSafe.length}coords  midFast=[${ghostFast[Math.floor(ghostFast.length/2)]}]  midSafe=[${ghostSafe[Math.floor(ghostSafe.length/2)]}]`);
@@ -376,6 +438,22 @@ function bindSlider() {
       }
     });
   }
+
+  const weatherToggle = document.getElementById("weather-toggle");
+  if (weatherToggle && slider) {
+    weatherToggle.addEventListener("change", () => {
+      drawWeatherZones(weatherToggle.checked);
+      if (graphReady) {
+        // Recompute ghosts on weather toggle
+        const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
+        ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, weatherToggle.checked ? WEATHER_ZONES : []);
+        ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, weatherToggle.checked ? WEATHER_ZONES : []);
+        if (ghostFast && ghostSafe) drawGhostRoutes(ghostFast, ghostSafe);
+        
+        runAstar(parseInt(slider.value, 10));
+      }
+    });
+  }
 }
 
 function bindSimToggle() {
@@ -418,8 +496,9 @@ function bindDensityChart() {
           if (graphReady) {
             // Recompute ghost routes when density changes
             const fleetNow = FLEET_DENSITY_24H[state.selectedHour];
-            ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
-            ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow);
+            const isW = document.getElementById("weather-toggle")?.checked ?? true;
+            ghostFast = findRoute(graphAdj, graphNodes, originNodeId, destNodeId,   0, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
+            ghostSafe = findRoute(graphAdj, graphNodes, originNodeId, destNodeId, 100, CELL_TOWERS, COVERAGE_RADIUS, fleetNow, isW ? WEATHER_ZONES : []);
             if (ghostFast && ghostSafe) {
               drawGhostRoutes(ghostFast, ghostSafe);
             }
@@ -440,6 +519,7 @@ function bindDensityChart() {
 async function init() {
   // 1. Static map layers
   drawCoverage();
+  drawWeatherZones();
   drawTowers();
   renderDensityChart();
 

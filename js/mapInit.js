@@ -19,6 +19,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 // ── Layer groups ───────────────────────────────────────────────
 export const layerCoverage = L.layerGroup().addTo(map);
+export const layerWeather  = L.layerGroup().addTo(map); // weather zone circles
 export const layerTowers   = L.layerGroup().addTo(map);
 export const layerFleet    = L.layerGroup().addTo(map);
 export const layerBridges  = L.layerGroup().addTo(map);
